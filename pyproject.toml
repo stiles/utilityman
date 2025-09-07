@@ -1,0 +1,38 @@
+[build-system]
+requires = ["hatchling>=1.21"]
+build-backend = "hatchling.build"
+
+[project]
+name = "scorebug"
+version = "0.1.0"
+description = "Follow any MLB game in your shell"
+readme = "README.md"
+requires-python = ">=3.9"
+dependencies = [
+  "requests>=2.31",
+]
+license = {text = "MIT"}
+authors = [{name = "Matt Stiles"}]
+keywords = ["mlb", "baseball", "cli", "sports", "live"]
+classifiers = [
+  "Programming Language :: Python :: 3",
+  "Programming Language :: Python :: 3 :: Only",
+  "License :: OSI Approved :: MIT License",
+  "Intended Audience :: End Users/Desktop",
+  "Environment :: Console",
+  "Topic :: Games/Entertainment :: Sports",
+  "Topic :: Utilities",
+]
+
+[project.scripts]
+scorebug = "scorebug.cli:main"
+
+[project.urls]
+Homepage = "https://github.com/stiles/scorebug"
+Repository = "https://github.com/stiles/scorebug"
+Issues = "https://github.com/stiles/scorebug/issues"
+
+[tool.hatch.build.targets.wheel]
+packages = ["scorebug"]
+
+
