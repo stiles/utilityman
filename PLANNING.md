@@ -1,14 +1,14 @@
 # deps
 uv pip install requests      # or: pip install requests
 
-# run: follow Dodgers today, LA time
-python mlbterm.py --team LAD
+# run: follow a team today
+scorebug dodgers
 
 # run: explicit gamePk, show pitches, start from first at-bat
-python mlbterm.py --gamepk 776443 --pitches --from-start
+scorebug --gamepk 776443 --pitches --from-start
 
 # run: any team on a specific date (YYYY-MM-DD)
-python mlbterm.py --team Orioles --date 2025-09-06
+scorebug --team Orioles --date 2025-09-06
 
 
 ==
@@ -23,12 +23,27 @@ controlc.com
 AndSchneider
 GitHub
 
-Next tweaks
+Done
 
-Add a --team LAD --opponent BAL disambiguator for doubleheaders
+- Packaged as CLI with `scorebug` entry point
+- Positional team arg and prompt fallback
+- Real team abbreviations in scoreboard
+- Scoring plays highlighted
+- Scoreboard prints on change and inning transitions
+- Reprints plays when descriptions finalize
+- Ball/strike count and pitch count per play
+- Base runner indicators when available (◉○○)
+- Inning banners on half-inning transitions
+- Logging: --log for streaming, --dump for full-game export
 
-Squash noise: only print scoring plays unless --verbose
+Next features
 
-Cache team id map locally to skip the tiny /teams call
-
-If you want this wrapped as a pip-installable CLI with an entry point, say the word and I’ll cut it into a package layout with uv support.
+- Opponent filter edge cases when multiple games in a day
+- Scoring-only refinements (concise between-plays summaries)
+- Box score snapshot every N minutes or on inning end
+- Local timezone detection and override flag (e.g., --tz America/New_York)
+- Cache team id map locally to skip /teams on each run
+- Persistent config file for defaults (team, color, interval)
+- Save game log to file (--log path)
+- Dump historical play-by-play for a specific date/gamePk to a file
+- ASCII line score per inning and RISP highlighting
