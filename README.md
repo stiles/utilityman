@@ -43,10 +43,10 @@ utilityman dodgers
 # or just run `utilityman` and enter a team when prompted
 ```
 
-- Specific game by gamePk
+- Specific game  (`gamePk` id from [BaseballSavant](https://baseballsavant.mlb.com/gamefeed?gamePk=776443))
 
 ```bash
-utilityman --gamepk 716910
+utilityman --gamepk 776443
 ```
 
 - Show every pitch and start from the first at-bat
@@ -58,9 +58,9 @@ utilityman yankees --pitches --from-start
 ## What it does
 
 - Finds today's game for a team (or uses --gamepk)
-- Streams new at-bats and optionally every pitch
+- Streams new at-bats and optionally every pitch as the game unfolds
 - Prints a compact scoreboard on change or inning transitions
-- Highlights scoring plays
+- Highlights scoring plays in real time
 - If no game is live, prints the last final and the next scheduled game
 
 ## Outputs
