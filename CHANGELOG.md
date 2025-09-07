@@ -4,7 +4,7 @@ All notable changes to this project will be documented in this file.
 
 Format based on Keep a Changelog.
 
-## [0.3.0] - 2025-01-19
+## [0.3.0] - 2025-09-07
 
 ### ✨ Major UI/UX Improvements
 - **Clean game headers** - Organized format with Teams/Pitchers/Venue/Time sections
