@@ -2,7 +2,7 @@
 
 Follow your favorite MLB teams with live play-by-play in the terminal. 
 
-![Scorebug example](examples/images/example.png)
+![Scorebug example](examples/images/example_image.png)
 
 ## Example output
 
