@@ -41,7 +41,6 @@ Done
 
 Next features
 
-- Opponent filter edge cases when multiple games in a day
 - Scoring-only refinements (concise between-plays summaries)
 - Box score snapshot every N minutes or on inning end
 - Opponent filter improvements when multiple games in a day

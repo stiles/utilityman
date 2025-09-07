@@ -2,6 +2,25 @@
 
 Follow your favorite MLB teams with live play-by-play in the terminal. 
 
+![Scorebug Example](examples/images/example.png)
+
+## Example Output
+
+```
+⚾ Game On! ⚾
+Teams: Los Angeles Dodgers at Baltimore Orioles  
+Pitchers: Clayton Kershaw vs. Tomoyuki Sugano
+📍 Oriole Park at Camden Yards
+🕐 Sun 10:35 AM PDT
+
+▲1  Shohei Ohtani homers (47) on a fly ball to center field. (1 RBI) (1-0) ○○○
+▲1  Mookie Betts strikes out swinging. (3-3) ○○○
+────────────────────────────────────────────────
+🏟️  ▲ Top 1
+     ⚾ LAD  1  (H: 1 E:0)
+     ⚾ BAL  0  (H: 0 E:0)
+```
+
 ## Install
 
 - From PyPI

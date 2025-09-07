@@ -270,6 +270,10 @@ def format_game_brief(g: dict, local_tz: str) -> str:
     status = (g.get("status") or {}).get("detailedState") or (g.get("status") or {}).get("abstractGameState")
     return f"{when}  {at} {ar} @ {ht} {hr}  [{status}]"
 
+def get_team_icon(abbr: str) -> str:
+    """Always use baseball emoji for consistency"""
+    return "⚾"
+
 def fmt_scoreboard(live: dict, color: bool) -> str:
     ls = live.get("liveData", {}).get("linescore", {}) or {}
     teams = ls.get("teams", {}) or {}
@@ -282,15 +286,20 @@ def fmt_scoreboard(live: dict, color: bool) -> str:
                  or (gd_teams.get("away") or {}).get("teamName") or "AWY")
     home_abbr = ((gd_teams.get("home") or {}).get("abbreviation")
                  or (gd_teams.get("home") or {}).get("teamName") or "HME")
-    sb = (
-        f"[{state} {inning or ''}]  "
-        f"{colorize(color, away_abbr, '36')} {away.get('runs','-')} "
-        f"{colorize(color, 'H', '36')} {away.get('hits','-')} "
-        f"{colorize(color, 'E', '36')} {away.get('errors','-')}  |  "
-        f"{colorize(color, home_abbr, '35')} {home.get('runs','-')} "
-        f"{colorize(color, 'H', '35')} {home.get('hits','-')} "
-        f"{colorize(color, 'E', '35')} {home.get('errors','-')}"
-    )
+    
+    # Get team icons
+    away_icon = get_team_icon(away_abbr)
+    home_icon = get_team_icon(home_abbr)
+    
+    # Clean, simple scoreboard format
+    arrow = "▲" if state == "Top" else "▼" if state == "Bottom" else ""
+    inning_text = f"{arrow} {state} {inning}" if state and inning else f"Inning {inning or '?'}"
+    
+    away_line = f"{away_icon} {colorize(color, away_abbr, '36')} {away.get('runs',0):>2}  (H:{away.get('hits',0):>2} E:{away.get('errors',0)})"
+    home_line = f"{home_icon} {colorize(color, home_abbr, '35')} {home.get('runs',0):>2}  (H:{home.get('hits',0):>2} E:{home.get('errors',0)})"
+    
+    # Simple header and content - no complex borders
+    sb = f"🏟️  {colorize(color, inning_text, '33')}\n     {away_line}\n     {home_line}"
     return sb
 
 def fmt_linescore(live: dict, color: bool) -> str:
@@ -333,6 +342,42 @@ def _format_start_time_local(live: dict, tz_key: str) -> str | None:
         return dt_local.strftime("%a %I:%M %p %Z")
     except Exception:
         return None
+
+def fmt_game_header(live: dict, color: bool, tz_key: str) -> str:
+    """Create a clean, organized game header"""
+    gd = (live.get("gameData") or {})
+    teams = (gd.get("teams") or {})
+    away_team = teams.get("away") or {}
+    home_team = teams.get("home") or {}
+    
+    away_name = away_team.get("name") or away_team.get("teamName") or "Away"
+    home_name = home_team.get("name") or home_team.get("teamName") or "Home"
+    
+    # Game info
+    venue = (gd.get("venue") or {}).get("name", "")
+    
+    # Format start time
+    when = _format_start_time_local(live, tz_key)
+    
+    # Get probable pitchers
+    probs = (gd.get("probablePitchers") or {})
+    away_pitcher = (probs.get("away") or {}).get("fullName", "")
+    home_pitcher = (probs.get("home") or {}).get("fullName", "")
+    
+    # Create clean header
+    header_parts = []
+    header_parts.append(f"⚾ Game On! ⚾")
+    header_parts.append(f"Teams: {colorize(color, away_name, '36')} at {colorize(color, home_name, '35')}")
+    
+    if away_pitcher and home_pitcher:
+        header_parts.append(f"Pitchers: {away_pitcher} vs. {home_pitcher}")
+    
+    if venue:
+        header_parts.append(f"📍 {venue}")
+    if when:
+        header_parts.append(f"🕐 {when}")
+    
+    return "\n".join(header_parts)
 
 def fmt_probables(live: dict, color: bool, tz_key: str) -> str | None:
     gd = (live.get("gameData") or {})
@@ -423,7 +468,7 @@ def fmt_play(p: dict, color: bool, fallback_bases: set[str] | None = None) -> st
     pc_txt = f" [{pitch_ct}p]" if pitch_ct is not None else ""
     return f"{tag}  {desc_colored}{cnt_txt}{bases_txt}" + (f"  — {sides}" if sides else "") + f"   [{outs} out]{pc_txt}"
 
-def stream(gamepk: int, interval: float, show_pitches: bool, from_start: bool, color: bool, scoring_only: bool = False, line_score: bool = False, box_interval_min: float | None = None, tz_key: str | None = None, quiet: bool = False, verbose: bool = False):
+def stream(gamepk: int, interval: float, show_pitches: bool, from_start: bool, color: bool, scoring_only: bool = False, line_score: bool = False, box_interval_min: float | None = None, tz_key: str | None = None, quiet: bool = False, verbose: bool = False, preface_lines: list[str] | None = None):
     s = http_session()
     etag = None
     last_len = 0
@@ -435,8 +480,10 @@ def stream(gamepk: int, interval: float, show_pitches: bool, from_start: bool, c
     last_inning: int | None = None
     last_state: str | None = None
     last_snapshot_ts: float = time.time()
+    preface_printed: bool = False
+    header_shown: bool = False
 
-    print(colorize(color, f"Following gamePk {gamepk}", "32"))
+    # We'll show a nicer header when we get the first data
     while True:
         hdrs = {"If-None-Match": etag} if etag else {}
         try:
@@ -470,15 +517,51 @@ def stream(gamepk: int, interval: float, show_pitches: bool, from_start: bool, c
         is_pregame = (abstract == "preview") or ("pre" in detailed) or ("warm" in detailed)
 
         plays = (data.get("liveData", {}).get("plays", {}) or {}).get("allPlays", [])
+        
+        # Show header for live games at the very start
+        if not header_shown and not is_pregame and plays:
+            header = fmt_game_header(data, color, tz_key or local_tz_key("America/Los_Angeles"))
+            print(f"\n{header}")
+            print()
+            header_shown = True
+        
         if is_pregame:
-            # Pregame: show scoreboard + probables with start time, skip plays entirely
+            # Pregame: show friendly header + scoreboard + probables with start time, skip plays entirely
             status = game_status.get("detailedState", "Preview")
             if sb != last_sb or status != last_status:
-                print(colorize(color, "—" * 72, "90"))
+                if not preface_printed:
+                    # Show nice pregame header first time
+                    gd = (data.get("gameData") or {})
+                    teams = (gd.get("teams") or {})
+                    away_team = teams.get("away") or {}
+                    home_team = teams.get("home") or {}
+                    away_name = away_team.get("name") or away_team.get("teamName") or "Away"
+                    home_name = home_team.get("name") or home_team.get("teamName") or "Home"
+                    venue = (gd.get("venue") or {}).get("name", "")
+                    when = _format_start_time_local(data, tz_key or local_tz_key("America/Los_Angeles"))
+                    
+                    # Get probable pitchers
+                    probs = (gd.get("probablePitchers") or {})
+                    away_pitcher = (probs.get("away") or {}).get("fullName", "")
+                    home_pitcher = (probs.get("home") or {}).get("fullName", "")
+                    
+                    print(f"\n🎯 Game Starting Soon! 🎯")
+                    print(f"Teams: {colorize(color, away_name, '36')} at {colorize(color, home_name, '35')}")
+                    if away_pitcher and home_pitcher:
+                        print(f"Pitchers: {away_pitcher} vs. {home_pitcher}")
+                    if venue:
+                        print(f"📍 {venue}")
+                    if when:
+                        print(f"🕐 {when}")
+                    print()
+                    preface_printed = True
+                
+                print(colorize(color, "─" * 48, "90"))
                 print(sb)
-                prob = fmt_probables(data, color, tz_key or local_tz_key("America/Los_Angeles"))
-                if prob:
-                    print(prob)
+                if preface_lines and not preface_printed:
+                    for ln in preface_lines:
+                        print(ln)
+                # Pitchers already shown in header
                 last_sb = sb
                 last_status = status
             time.sleep(interval)
@@ -559,7 +642,9 @@ def stream(gamepk: int, interval: float, show_pitches: bool, from_start: bool, c
             if prev is not None and sig != prev and desc:
                 # always show finalized updates even in scoring-only
                 if not quiet:
-                    print(fmt_play(p, color, fbases))
+                    # Add a marker to show this is an updated play result
+                    updated_play = fmt_play(p, color, fbases)
+                    print(f"📝 {updated_play}")
                 play_signatures[idx] = sig
                 updates_printed = True
 
@@ -572,7 +657,7 @@ def stream(gamepk: int, interval: float, show_pitches: bool, from_start: bool, c
                 force_snapshot = True
                 last_snapshot_ts = time.time()
         if force_boundary or printed_any or updates_printed or sb != last_sb or force_snapshot:
-            print(colorize(color, "—" * 72, "90"))
+            print(colorize(color, "─" * 48, "90"))
             print(sb)
             last_sb = sb
             last_inning = cur_inning
@@ -595,7 +680,12 @@ def stream(gamepk: int, interval: float, show_pitches: bool, from_start: bool, c
 
         abstract = (data.get("gameData", {}).get("status", {}) or {}).get("abstractGameState")
         if abstract == "Final":
-            print(colorize(color, "Final. Stream closed.", "32"))
+            # Show final score one more time
+            final_sb = fmt_scoreboard(data, color)
+            print(colorize(color, "─" * 48, "90"))
+            print(final_sb)
+            print()
+            print(f"🏁 {colorize(color, 'Game Over! Thanks for watching.', '32')}")
             return
 
         from_start = False
@@ -666,7 +756,7 @@ def main():
             stream(gamepk, interval=args.interval, show_pitches=args.pitches,
                    from_start=args.from_start, color=not args.no_color, scoring_only=args.scoring_only,
                    line_score=args.line_score, box_interval_min=args.box_interval, tz_key=tz_key,
-                   quiet=args.quiet, verbose=args.verbose)
+                   quiet=args.quiet, verbose=args.verbose, preface_lines=None)
         except KeyboardInterrupt:
             print("\nBye.")
         return
@@ -715,7 +805,7 @@ def main():
             stream(gamepk, interval=args.interval, show_pitches=args.pitches,
                    from_start=args.from_start, color=not args.no_color, scoring_only=args.scoring_only,
                    line_score=args.line_score, box_interval_min=args.box_interval, tz_key=tz_key,
-                   quiet=args.quiet, verbose=args.verbose)
+                   quiet=args.quiet, verbose=args.verbose, preface_lines=None)
         except KeyboardInterrupt:
             print("\nBye.")
         return
@@ -733,10 +823,17 @@ def main():
     selected = select_gamepk_interactive(games, team_id, tz_key, target_date=str(now_local.date()))
     if selected:
         try:
+            preface: list[str] = []
+            if last_final:
+                preface.append("Last game:")
+                preface.append("  " + format_game_brief(last_final, tz_key))
+            if next_up:
+                preface.append("Next game:")
+                preface.append("  " + format_game_brief(next_up, tz_key))
             stream(selected, interval=args.interval, show_pitches=args.pitches,
                    from_start=args.from_start, color=not args.no_color, scoring_only=args.scoring_only,
                    line_score=args.line_score, box_interval_min=args.box_interval, tz_key=tz_key,
-                   quiet=args.quiet, verbose=args.verbose)
+                   quiet=args.quiet, verbose=args.verbose, preface_lines=preface)
         except KeyboardInterrupt:
             print("\nBye.")
         return

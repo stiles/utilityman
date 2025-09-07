@@ -4,6 +4,24 @@ All notable changes to this project will be documented in this file.
 
 Format based on Keep a Changelog.
 
+## [0.3.0] - 2025-01-19
+
+### ✨ Major UI/UX Improvements
+- **Clean game headers** - Organized format with Teams/Pitchers/Venue/Time sections
+- **Consistent team icons** - Uses standard ⚾ baseball emoji for all teams
+- **Improved game flow** - "⚾ Game On!" header appears first when joining live games
+- **Cleaner scoreboard** - Simplified format without misaligned ASCII borders
+- **Better play updates** - Added 📝 marker for finalized/corrected plays to reduce chronological confusion
+- **Enhanced game status** - "🎯 Game Starting Soon!" for pregame, "🏁 Game Over!" for finals
+
+### 🎨 Visual Polish
+- Shorter separator lines (48 vs 72 chars) for cleaner display  
+- Stadium emoji (🏟️) for scoreboard header
+- Venue location with 📍 icon
+- Start time with 🕐 icon
+- More readable team stats formatting
+- Professional, consistent emoji usage throughout
+
 ## [0.2.0] - 2025-09-07
 
 - Added timezone override `--tz` with local tz detection
