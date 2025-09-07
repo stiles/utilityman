@@ -720,6 +720,15 @@ def main():
             print("\nBye.")
         return
 
+    # No live game: show last and next once
+    print(colorize(not args.no_color, "—" * 72, "90"))
+    if last_final:
+        print("Last game:")
+        print("  " + format_game_brief(last_final, tz_key))
+    if next_up:
+        print("Next game:")
+        print("  " + format_game_brief(next_up, tz_key))
+
     # Interactive selection if multiple games today and none live
     selected = select_gamepk_interactive(games, team_id, tz_key, target_date=str(now_local.date()))
     if selected:
@@ -732,18 +741,7 @@ def main():
             print("\nBye.")
         return
 
-    print(colorize(not args.no_color, "—" * 72, "90"))
-    if last_final:
-        print("Last game:")
-        print("  " + format_game_brief(last_final, tz_key))
-    else:
-        print("No recent completed game found.")
-
-    if next_up:
-        print("Next game:")
-        print("  " + format_game_brief(next_up, tz_key))
-    else:
-        print("No upcoming game found in the next few days.")
+    # If nothing selected, we've already printed last/next above
 
 if __name__ == "__main__":
     main()

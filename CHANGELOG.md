@@ -4,7 +4,7 @@ All notable changes to this project will be documented in this file.
 
 Format based on Keep a Changelog.
 
-## [0.2.0]
+## [0.2.0] - 2025-09-07
 
 - Added timezone override `--tz` with local tz detection
 - Added team ID caching under `~/.scorebug/teams-<season>.json`
@@ -13,6 +13,8 @@ Format based on Keep a Changelog.
 - Periodic scoreboard snapshots via `--box-interval N` (minutes)
 - Quiet/verbose modes: `--quiet` (scoreboard only), `--verbose` (pitches/runners)
 - Base-state fallback from live linescore when play runners missing
+- Pregame cleanup: ignore StatusChange, show Probables with local start time
+- No-live-game summary: print last final and next scheduled
 - Docs: expanded README CLI reference; added PUBLISH.md and publish script
 
 ## [0.1.0] - 2025-09-06
