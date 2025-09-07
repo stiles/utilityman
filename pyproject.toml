@@ -20,8 +20,8 @@ classifiers = [
   "License :: OSI Approved :: MIT License",
   "Intended Audience :: End Users/Desktop",
   "Environment :: Console",
-  "Topic :: Games/Entertainment :: Sports",
   "Topic :: Utilities",
+  "Topic :: Games/Entertainment",
 ]
 
 [project.scripts]
