@@ -4,7 +4,7 @@ All notable changes to this project will be documented in this file.
 
 Format based on Keep a Changelog.
 
-## [Unreleased]
+## [0.2.0]
 
 - Added timezone override `--tz` with local tz detection
 - Added team ID caching under `~/.scorebug/teams-<season>.json`
