@@ -1,4 +1,4 @@
-## scorebug: live MLB play-by-play for your shell
+## Scorebug: Live MLB play-by-play in the shell
 
 Follow MLB games in your terminal. Fast to start, easy to read, scriptable.
 
