@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-scorebug: Follow any MLB game in your shell.
+utilityman: Follow any MLB game in your shell.
 
 - Finds today's game for a team (or uses --gamepk)
 - Streams new at-bats (and optionally every pitch)

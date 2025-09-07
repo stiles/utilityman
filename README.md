@@ -1,4 +1,4 @@
-## Scorebug
+## Utilityman
 
 Follow your favorite MLB teams with live play-by-play in the terminal. 
 
@@ -25,7 +25,7 @@ Pitchers: Clayton Kershaw vs. Tomoyuki Sugano
 
 - From PyPI
   ```bash
-  pip install scorebug
+  pip install utilityman
   ```
 
 - Local checkout (editable)
@@ -39,20 +39,20 @@ Requires Python 3.9+.
 - Positional team or prompt
 
 ```bash
-scorebug dodgers
-# or just run `scorebug` and enter a team when prompted
+utilityman dodgers
+# or just run `utilityman` and enter a team when prompted
 ```
 
 - Specific game by gamePk
 
 ```bash
-scorebug --gamepk 716910
+utilityman --gamepk 716910
 ```
 
 - Show every pitch and start from the first at-bat
 
 ```bash
-scorebug yankees --pitches --from-start
+utilityman yankees --pitches --from-start
 ```
 
 ## What it does
@@ -101,11 +101,11 @@ scorebug yankees --pitches --from-start
 
 - Data comes from MLB StatsAPI schedule and the v1.1 live feed
 - Uses If-None-Match to avoid reprinting unchanged states
- - Team IDs are cached in `~/.scorebug/teams-<season>.json` to reduce API calls
+ - Team IDs are cached in `~/.utilityman/teams-<season>.json` to reduce API calls
 
 ## Config (optional)
 
-Create `~/.scorebug/config.toml` to set defaults:
+Create `~/.utilityman/config.toml` to set defaults:
 
 ```toml
 team = "Dodgers"          # default team

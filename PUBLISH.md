@@ -12,7 +12,7 @@ This project uses `hatchling` to build wheels and `twine` to upload. You can pub
 
 ### Versioning
 
-- Bump `__version__` in `scorebug/__init__.py`
+- Bump `__version__` in `utilityman/__init__.py`
 - Update `CHANGELOG.md` and `README.md`
 
 ### Build
@@ -36,7 +36,7 @@ python -m twine upload -u __token__ -p "$PYPI" dist/*
 ### Install from TestPyPI
 
 ```bash
-pip install --index-url https://test.pypi.org/simple/ --extra-index-url https://pypi.org/simple scorebug
+pip install --index-url https://test.pypi.org/simple/ --extra-index-url https://pypi.org/simple utilityman
 ```
 
 

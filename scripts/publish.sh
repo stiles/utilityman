@@ -1,20 +1,20 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-echo "Starting the scorebug publishing process..."
+echo "Starting the utilityman publishing process..."
 echo "========================================"
 
 ROOT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$ROOT_DIR"
 
 VERSION="$(python - <<'PY'
-from scorebug import __version__
+from utilityman import __version__
 print(__version__)
 PY
 )"
 
 if [[ -z "${VERSION}" ]]; then
-  echo "Error: Could not determine version from scorebug/__init__.py" >&2
+  echo "Error: Could not determine version from utilityman/__init__.py" >&2
   exit 1
 fi
 
@@ -49,14 +49,14 @@ select choice in "Publish to TestPyPI" "Publish to PyPI (Official)" "Cancel"; do
     "Publish to TestPyPI")
       [[ -n "${PYPI_TEST:-}" ]] || { echo "Error: PYPI_TEST is not set"; exit 1; }
       python -m twine upload --repository-url https://test.pypi.org/legacy/ -u __token__ -p "$PYPI_TEST" dist/*
-      echo "✅ Published to TestPyPI: https://test.pypi.org/project/scorebug/${VERSION}/"
+      echo "✅ Published to TestPyPI: https://test.pypi.org/project/utilityman/${VERSION}/"
       break;;
     "Publish to PyPI (Official)")
       read -p "Publish to OFFICIAL PyPI? (y/n) " -n 1 -r; echo
       [[ $REPLY =~ ^[Yy]$ ]] || { echo "Cancelled."; exit 1; }
       [[ -n "${PYPI:-}" ]] || { echo "Error: PYPI is not set"; exit 1; }
       python -m twine upload -u __token__ -p "$PYPI" dist/*
-      echo "✅ Published to PyPI: https://pypi.org/project/scorebug/${VERSION}/"
+      echo "✅ Published to PyPI: https://pypi.org/project/utilityman/${VERSION}/"
       break;;
     "Cancel")
       echo "Cancelled."; break;;

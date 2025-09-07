@@ -4,7 +4,10 @@ All notable changes to this project will be documented in this file.
 
 Format based on Keep a Changelog.
 
-## [0.3.0] - 2025-09-07
+## [0.3.0] - 2025-01-19
+
+### 🏷️ Project Renamed
+- **Package renamed** from `scorebug` to `utilityman` - the utility player for baseball fans!
 
 ### ✨ Major UI/UX Improvements
 - **Clean game headers** - Organized format with Teams/Pitchers/Venue/Time sections
@@ -25,7 +28,7 @@ Format based on Keep a Changelog.
 ## [0.2.0] - 2025-09-07
 
 - Added timezone override `--tz` with local tz detection
-- Added team ID caching under `~/.scorebug/teams-<season>.json`
+- Added team ID caching under `~/.utilityman/teams-<season>.json`
 - RISP highlighting (yellow) on plays with runners in scoring position
 - Optional inning line score via `--line-score`
 - Periodic scoreboard snapshots via `--box-interval N` (minutes)

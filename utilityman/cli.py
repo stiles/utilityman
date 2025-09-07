@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-scorebug: Follow any MLB game in your shell.
+utilityman: Follow any MLB game in your shell.
 
 - Finds today's game for a team (or uses --gamepk)
 - Streams new at-bats (and optionally every pitch)
@@ -63,7 +63,7 @@ def local_tz_key(default: str = "America/Los_Angeles") -> str:
 
 def teams_cache_path(season: int) -> str:
     import os
-    base = os.path.expanduser("~/.scorebug")
+    base = os.path.expanduser("~/.utilityman")
     os.makedirs(base, exist_ok=True)
     return os.path.join(base, f"teams-{season}.json")
 
@@ -696,7 +696,7 @@ def main():
     # Load config
     import os
     cfg = {}
-    cfg_path = os.path.expanduser("~/.scorebug/config.toml")
+    cfg_path = os.path.expanduser("~/.utilityman/config.toml")
     try:
         if os.path.exists(cfg_path):
             try:

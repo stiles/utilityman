@@ -3,9 +3,9 @@ requires = ["hatchling>=1.21"]
 build-backend = "hatchling.build"
 
 [project]
-name = "scorebug"
+name = "utilityman"
 version = "0.3.0"
-description = "Follow any MLB game in your shell"
+description = "Follow any MLB game in your shell - the utility player for baseball fans"
 readme = "README.md"
 requires-python = ">=3.9"
 dependencies = [
@@ -25,14 +25,14 @@ classifiers = [
 ]
 
 [project.scripts]
-scorebug = "scorebug.cli:main"
+utilityman = "utilityman.cli:main"
 
 [project.urls]
-Homepage = "https://github.com/stiles/scorebug"
-Repository = "https://github.com/stiles/scorebug"
-Issues = "https://github.com/stiles/scorebug/issues"
+Homepage = "https://github.com/stiles/utilityman"
+Repository = "https://github.com/stiles/utilityman"
+Issues = "https://github.com/stiles/utilityman/issues"
 
 [tool.hatch.build.targets.wheel]
-packages = ["scorebug"]
+packages = ["utilityman"]
 
 
