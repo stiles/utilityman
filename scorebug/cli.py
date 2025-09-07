@@ -51,13 +51,49 @@ def http_session() -> requests.Session:
     })
     return s
 
+def local_tz_key(default: str = "America/Los_Angeles") -> str:
+    try:
+        tzinfo = datetime.now().astimezone().tzinfo
+        key = getattr(tzinfo, "key", None)
+        if isinstance(key, str) and key:
+            return key
+    except Exception:
+        pass
+    return default
+
+def teams_cache_path(season: int) -> str:
+    import os
+    base = os.path.expanduser("~/.scorebug")
+    os.makedirs(base, exist_ok=True)
+    return os.path.join(base, f"teams-{season}.json")
+
+def load_teams(session: requests.Session, season: int) -> list[dict]:
+    # Try cache first
+    import os, json as _json
+    path = teams_cache_path(season)
+    if os.path.exists(path):
+        try:
+            with open(path, "r", encoding="utf-8") as f:
+                data = _json.load(f)
+                if isinstance(data, list) and data:
+                    return data
+        except Exception:
+            pass
+    r = session.get(TEAMS, params={"sportId": 1, "season": season, "activeStatus": "Y"}, timeout=15)
+    r.raise_for_status()
+    teams = r.json().get("teams", [])
+    try:
+        with open(path, "w", encoding="utf-8") as f:
+            _json.dump(teams, f)
+    except Exception:
+        pass
+    return teams
+
 def parse_team_id(session: requests.Session, team: str, season: int) -> int:
     # Accept LAD, Dodgers, "Los Angeles Dodgers", or numeric id
     if re.fullmatch(r"\d+", team):
         return int(team)
-    r = session.get(TEAMS, params={"sportId": 1, "season": season, "activeStatus": "Y"}, timeout=15)
-    r.raise_for_status()
-    teams = r.json().get("teams", [])
+    teams = load_teams(session, season)
     t = team.lower()
     for x in teams:
         if t in {
@@ -163,6 +199,54 @@ def choose_live_last_next(games: list[dict], now_utc: datetime) -> tuple[dict|No
 
     return live, last_final, next_up
 
+def game_local_date(g: dict, tz_key: str) -> str | None:
+    gd = (g.get("gameDate") or "").replace("Z", "+00:00")
+    try:
+        return datetime.fromisoformat(gd).astimezone(ZoneInfo(tz_key)).date().isoformat()
+    except Exception:
+        return None
+
+def select_gamepk_interactive(games: list[dict], team_id: int, tz_key: str, target_date: str) -> int | None:
+    # Filter to target date
+    candidates: list[dict] = []
+    for g in games:
+        if game_local_date(g, tz_key) == target_date:
+            candidates.append(g)
+    if len(candidates) <= 1:
+        return candidates[0]["gamePk"] if candidates else None
+
+    # Build choices
+    rows: list[tuple[int, str]] = []
+    for g in candidates:
+        teams = (g.get("teams") or {})
+        home = (teams.get("home") or {}).get("team", {}) or {}
+        away = (teams.get("away") or {}).get("team", {}) or {}
+        opp = away if home.get("id") == team_id else home
+        opp_abbr = opp.get("abbreviation") or opp.get("teamName") or "?"
+        when = game_local_date(g, tz_key)
+        gd = (g.get("gameDate") or "").replace("Z", "+00:00")
+        try:
+            dt_local = datetime.fromisoformat(gd).astimezone(ZoneInfo(tz_key))
+            when_str = dt_local.strftime("%a %I:%M %p")
+        except Exception:
+            when_str = when or ""
+        status = (g.get("status") or {}).get("detailedState") or (g.get("status") or {}).get("abstractGameState")
+        rows.append((g["gamePk"], f"{when_str} vs {opp_abbr} [{status}]"))
+
+    print("Multiple games found. Choose one:")
+    for i, (_, label) in enumerate(rows, start=1):
+        print(f"  {i}) {label}")
+    while True:
+        try:
+            choice = input("Select [1-{}]: ".format(len(rows))).strip()
+        except EOFError:
+            choice = "1"
+        if not choice:
+            choice = "1"
+        if choice.isdigit() and 1 <= int(choice) <= len(rows):
+            return rows[int(choice)-1][0]
+        print("Invalid selection.")
+
 def format_game_brief(g: dict, local_tz: str) -> str:
     if not g:
         return ""
@@ -209,6 +293,24 @@ def fmt_scoreboard(live: dict, color: bool) -> str:
     )
     return sb
 
+def fmt_linescore(live: dict, color: bool) -> str:
+    ls = (live.get("liveData", {}) or {}).get("linescore", {}) or {}
+    innings = ls.get("innings") or []
+    gd_teams = (live.get("gameData", {}) or {}).get("teams", {})
+    away_abbr = ((gd_teams.get("away") or {}).get("abbreviation")
+                 or (gd_teams.get("away") or {}).get("teamName") or "AWY")
+    home_abbr = ((gd_teams.get("home") or {}).get("abbreviation")
+                 or (gd_teams.get("home") or {}).get("teamName") or "HME")
+    away_cells, home_cells = [], []
+    for inn in innings:
+        a = ((inn.get("away") or {}).get("runs"))
+        h = ((inn.get("home") or {}).get("runs"))
+        away_cells.append("-" if a is None else str(a))
+        home_cells.append("-" if h is None else str(h))
+    a_row = f"{colorize(color, away_abbr, '36')} " + " ".join(away_cells)
+    h_row = f"{colorize(color, home_abbr, '35')} " + " ".join(home_cells)
+    return a_row + "\n" + h_row
+
 def fmt_inning_banner(live: dict, color: bool) -> str:
     ls = (live.get("liveData", {}) or {}).get("linescore", {}) or {}
     inning = ls.get("currentInning")
@@ -219,6 +321,34 @@ def fmt_inning_banner(live: dict, color: bool) -> str:
     label = "Top" if is_top else "Bottom"
     fg = "36" if is_top else "35"
     return colorize(color, f"{arrow} {label} {inning}", fg)
+
+def _format_start_time_local(live: dict, tz_key: str) -> str | None:
+    gd = (live.get("gameData") or {})
+    dt = ((gd.get("datetime") or {}).get("dateTime")) or (live.get("gameDate"))
+    if not dt:
+        return None
+    try:
+        iso = dt.replace("Z", "+00:00")
+        dt_local = datetime.fromisoformat(iso).astimezone(ZoneInfo(tz_key))
+        return dt_local.strftime("%a %I:%M %p %Z")
+    except Exception:
+        return None
+
+def fmt_probables(live: dict, color: bool, tz_key: str) -> str | None:
+    gd = (live.get("gameData") or {})
+    teams = (gd.get("teams") or {})
+    away = (teams.get("away") or {}).get("abbreviation") or (teams.get("away") or {}).get("teamName")
+    home = (teams.get("home") or {}).get("abbreviation") or (teams.get("home") or {}).get("teamName")
+    probs = (gd.get("probablePitchers") or {})
+    a = (probs.get("away") or {}).get("fullName")
+    h = (probs.get("home") or {}).get("fullName")
+    if not (a or h):
+        return None
+    left = f"{colorize(color, away or 'AWY', '36')} {a or '?'}"
+    right = f"{colorize(color, home or 'HME', '35')} {h or '?'}"
+    when = _format_start_time_local(live, tz_key)
+    when_txt = f" — {when}" if when else ""
+    return f"Probables: {left} vs {right}{when_txt}"
 
 def new_pitches(play: dict, last_count: int) -> list[str]:
     ev = play.get("playEvents") or []
@@ -236,7 +366,7 @@ def new_pitches(play: dict, last_count: int) -> list[str]:
             out.append(s)
     return out
 
-def fmt_play(p: dict, color: bool) -> str:
+def fmt_play(p: dict, color: bool, fallback_bases: set[str] | None = None) -> str:
     about = p.get("about", {})
     res = p.get("result", {})
     half = (about.get("halfInning", "") or "").lower()
@@ -254,25 +384,16 @@ def fmt_play(p: dict, color: bool) -> str:
     matchup = p.get("matchup", {})
     bat = matchup.get("batter", {}).get("fullName", "")
     pit = matchup.get("pitcher", {}).get("fullName", "")
-    sides = f"{bat} vs {pit}" if bat and pit else ""
+    event_type = (res.get("eventType") or "").lower()
+    sides = f"{bat} vs {pit}" if bat and pit and event_type != "statuschange" else ""
     arrow = "\u25B2" if half.startswith("top") else "\u25BC"
     tag_color = "36" if half.startswith("top") else "35"
     tag = colorize(color, f"{arrow}{inn}", tag_color)
     is_scoring = about.get("isScoringPlay") or (rbi and rbi > 0)
-    desc_colored = colorize(color, desc, "32") if is_scoring else desc
-    # base runners from before/after state if available
-    bs = (p.get("about", {}) or {}).get("isOut")  # unused placeholder to keep similar structure
-    br = (p.get("runners", {}) or {})
-    # Some feeds include bases in before/after; fallback to liveData.linescore is outside play scope
-    def has_runner(b: str) -> bool:
-        # p.get("runners") structure varies; attempt common shapes
-        # Prefer p["credits"] or p["runners"] if present, else omit
-        return False
-    # Render placeholders if we can’t detect
     bases_txt = ""
-    if isinstance(p.get("runners"), list):
-        # best-effort: check last runner end bases
-        occupied = set()
+    occupied = set()
+    runners = p.get("runners")
+    if isinstance(runners, list) and runners:
         for r in p["runners"]:
             end_base = (r.get("movement") or {}).get("end")
             if end_base in {"1B","2B","3B"}:
@@ -280,6 +401,18 @@ def fmt_play(p: dict, color: bool) -> str:
         def dot(b):
             return "◉" if b in occupied else "○"
         bases_txt = f" {dot('1B')}{dot('2B')}{dot('3B')}"
+    elif fallback_bases:
+        occupied = set(fallback_bases)
+        def dot(b):
+            return "◉" if b in occupied else "○"
+        bases_txt = f" {dot('1B')}{dot('2B')}{dot('3B')}"
+    risp = ("2B" in occupied) or ("3B" in occupied)
+    if is_scoring:
+        desc_colored = colorize(color, desc, "32")
+    elif risp:
+        desc_colored = colorize(color, desc, "33")
+    else:
+        desc_colored = desc
 
     pitch_ct = None
     # Try to infer pitch count from playEvents length if present
@@ -290,7 +423,7 @@ def fmt_play(p: dict, color: bool) -> str:
     pc_txt = f" [{pitch_ct}p]" if pitch_ct is not None else ""
     return f"{tag}  {desc_colored}{cnt_txt}{bases_txt}" + (f"  — {sides}" if sides else "") + f"   [{outs} out]{pc_txt}"
 
-def stream(gamepk: int, interval: float, show_pitches: bool, from_start: bool, color: bool, scoring_only: bool = False):
+def stream(gamepk: int, interval: float, show_pitches: bool, from_start: bool, color: bool, scoring_only: bool = False, line_score: bool = False, box_interval_min: float | None = None, tz_key: str | None = None, quiet: bool = False, verbose: bool = False):
     s = http_session()
     etag = None
     last_len = 0
@@ -301,6 +434,7 @@ def stream(gamepk: int, interval: float, show_pitches: bool, from_start: bool, c
     play_signatures: dict[int, str] = {}
     last_inning: int | None = None
     last_state: str | None = None
+    last_snapshot_ts: float = time.time()
 
     print(colorize(color, f"Following gamePk {gamepk}", "32"))
     while True:
@@ -330,10 +464,28 @@ def stream(gamepk: int, interval: float, show_pitches: bool, from_start: bool, c
         ls = (data.get("liveData", {}) or {}).get("linescore", {}) or {}
         cur_inning = ls.get("currentInning")
         cur_state = ls.get("inningState")
+        game_status = ((data.get("gameData") or {}).get("status") or {})
+        detailed = (game_status.get("detailedState") or "").lower()
+        abstract = (game_status.get("abstractGameState") or "").lower()
+        is_pregame = (abstract == "preview") or ("pre" in detailed) or ("warm" in detailed)
 
         plays = (data.get("liveData", {}).get("plays", {}) or {}).get("allPlays", [])
+        if is_pregame:
+            # Pregame: show scoreboard + probables with start time, skip plays entirely
+            status = game_status.get("detailedState", "Preview")
+            if sb != last_sb or status != last_status:
+                print(colorize(color, "—" * 72, "90"))
+                print(sb)
+                prob = fmt_probables(data, color, tz_key or local_tz_key("America/Los_Angeles"))
+                if prob:
+                    print(prob)
+                last_sb = sb
+                last_status = status
+            time.sleep(interval)
+            continue
+
         if not plays:
-            status = (data.get("gameData", {}).get("status", {}) or {}).get("detailedState", "Unknown")
+            status = game_status.get("detailedState", "Unknown")
             if sb != last_sb or status != last_status:
                 print(colorize(color, "—" * 72, "90"))
                 print(sb)
@@ -345,9 +497,24 @@ def stream(gamepk: int, interval: float, show_pitches: bool, from_start: bool, c
 
         start_idx = 0 if from_start else last_len
         printed_any = False
+        # fallback bases from current linescore offense state
+        offense = (ls.get("offense") or {})
+        fbases: set[str] = set()
+        if offense.get("first"):
+            fbases.add("1B")
+        if offense.get("second"):
+            fbases.add("2B")
+        if offense.get("third"):
+            fbases.add("3B")
+
         for i in range(start_idx, len(plays)):
             p = plays[i]
-            if scoring_only:
+            evt_type = ((p.get("result") or {}).get("eventType") or "").lower()
+            if evt_type == "statuschange":
+                continue
+            if quiet:
+                pass
+            elif scoring_only:
                 about = p.get("about", {}) or {}
                 res = p.get("result", {}) or {}
                 is_scoring = about.get("isScoringPlay") or (res.get("rbi") or 0) > 0
@@ -355,11 +522,11 @@ def stream(gamepk: int, interval: float, show_pitches: bool, from_start: bool, c
                     # skip non-scoring plays in scoring-only mode
                     pass
                 else:
-                    print(fmt_play(p, color))
+                    print(fmt_play(p, color, fbases))
             else:
-                print(fmt_play(p, color))
+                print(fmt_play(p, color, fbases))
             idx = p.get("about", {}).get("atBatIndex")
-            if show_pitches and idx is not None:
+            if (show_pitches or verbose) and idx is not None and not quiet:
                 seen = pitch_counts.get(idx, 0)
                 for line in new_pitches(p, seen):
                     print(colorize(color, line, "37"))
@@ -391,14 +558,20 @@ def stream(gamepk: int, interval: float, show_pitches: bool, from_start: bool, c
             prev = play_signatures.get(idx)
             if prev is not None and sig != prev and desc:
                 # always show finalized updates even in scoring-only
-                print(fmt_play(p, color))
+                if not quiet:
+                    print(fmt_play(p, color, fbases))
                 play_signatures[idx] = sig
                 updates_printed = True
 
         force_boundary = (cur_inning is not None and cur_state is not None and (
             cur_inning != last_inning or cur_state != last_state
         ))
-        if force_boundary or printed_any or updates_printed or sb != last_sb:
+        force_snapshot = False
+        if box_interval_min:
+            if (time.time() - last_snapshot_ts) >= box_interval_min * 60.0:
+                force_snapshot = True
+                last_snapshot_ts = time.time()
+        if force_boundary or printed_any or updates_printed or sb != last_sb or force_snapshot:
             print(colorize(color, "—" * 72, "90"))
             print(sb)
             last_sb = sb
@@ -409,6 +582,16 @@ def stream(gamepk: int, interval: float, show_pitches: bool, from_start: bool, c
                 if banner:
                     print(banner)
                 print("")
+            # show probable pitchers in pre-game states
+            game_status = ((data.get("gameData") or {}).get("status") or {})
+            detailed = (game_status.get("detailedState") or "").lower()
+            abstract = (game_status.get("abstractGameState") or "").lower()
+            if ("pre" in detailed) or ("warm" in detailed) or (abstract == "preview"):
+                prob = fmt_probables(data, color, tz_key or local_tz_key("America/Los_Angeles"))
+                if prob:
+                    print(prob)
+            if line_score:
+                print(fmt_linescore(data, color))
 
         abstract = (data.get("gameData", {}).get("status", {}) or {}).get("abstractGameState")
         if abstract == "Final":
@@ -419,22 +602,44 @@ def stream(gamepk: int, interval: float, show_pitches: bool, from_start: bool, c
         time.sleep(interval)
 
 def main():
-    tz_local = "America/Los_Angeles"
-    today_local = datetime.now(ZoneInfo(tz_local)).date()
+    tz_default = local_tz_key("America/Los_Angeles")
+    # Load config
+    import os
+    cfg = {}
+    cfg_path = os.path.expanduser("~/.scorebug/config.toml")
+    try:
+        if os.path.exists(cfg_path):
+            try:
+                import tomllib
+            except Exception:
+                tomllib = None
+            if tomllib:
+                with open(cfg_path, "rb") as f:
+                    cfg = tomllib.load(f) or {}
+    except Exception:
+        cfg = {}
+
+    tz_initial = cfg.get("tz") or tz_default
+    today_local = datetime.now(ZoneInfo(tz_initial)).date()
 
     ap = argparse.ArgumentParser(description="Stream MLB play-by-play in your terminal")
     ap.add_argument("team", nargs="?", help="Team id, abbr, or name (e.g., 119, LAD, Dodgers)")
     ap.add_argument("--team", dest="team_flag", help="Team id, abbr, or name (e.g., 119, LAD, Dodgers)")
-    ap.add_argument("--date", default=str(today_local), help="YYYY-MM-DD (default: today in LA)")
+    ap.add_argument("--date", default=str(today_local), help="YYYY-MM-DD (default: today in local tz)")
     ap.add_argument("--gamepk", type=int, help="MLB gamePk (skips schedule lookup)")
-    ap.add_argument("--interval", type=float, default=2.5, help="Poll seconds (default 2.5)")
+    ap.add_argument("--interval", type=float, default=cfg.get("interval", 2.5), help="Poll seconds (default 2.5)")
     ap.add_argument("--pitches", action="store_true", help="Print each pitch")
     ap.add_argument("--from-start", action="store_true", help="Print all prior at-bats on first fetch")
-    ap.add_argument("--no-color", action="store_true", help="Disable ANSI color")
+    ap.add_argument("--no-color", action="store_true", default=bool(cfg.get("no_color", False)), help="Disable ANSI color")
     ap.add_argument("--scoring-only", action="store_true", help="Only print scoring plays and inning transitions")
     ap.add_argument("--opponent", help="Opponent id, abbr, or name to disambiguate doubleheaders")
     ap.add_argument("--log", help="Append stream output to a file")
     ap.add_argument("--dump", help="Write full game log to a file and exit")
+    ap.add_argument("--tz", default=cfg.get("tz"), help="IANA timezone (e.g., America/New_York). Defaults to local")
+    ap.add_argument("--line-score", action="store_true", default=bool(cfg.get("line_score", False)), help="Print compact inning-by-inning linescore under the scoreboard")
+    ap.add_argument("--box-interval", type=float, default=cfg.get("box_interval"), help="Every N minutes, reprint scoreboard even if unchanged")
+    ap.add_argument("--quiet", action="store_true", help="Scoreboard and inning banners only")
+    ap.add_argument("--verbose", action="store_true", help="More details: pitches and runners")
     args = ap.parse_args()
 
     session = http_session()
@@ -459,12 +664,14 @@ def main():
                 old_stdout = sys.stdout
                 sys.stdout = open(args.log, "a", encoding="utf-8")
             stream(gamepk, interval=args.interval, show_pitches=args.pitches,
-                   from_start=args.from_start, color=not args.no_color, scoring_only=args.scoring_only)
+                   from_start=args.from_start, color=not args.no_color, scoring_only=args.scoring_only,
+                   line_score=args.line_score, box_interval_min=args.box_interval, tz_key=tz_key,
+                   quiet=args.quiet, verbose=args.verbose)
         except KeyboardInterrupt:
             print("\nBye.")
         return
 
-    team_input = args.team or args.team_flag
+    team_input = args.team or args.team_flag or cfg.get("team")
     if not team_input:
         try:
             team_input = input("Team (e.g., LAD, NYY, SFG or Dodgers, Yankees, Giants): ").strip()
@@ -479,11 +686,12 @@ def main():
     if args.opponent:
         opponent_id = parse_team_id(session, args.opponent, season)
 
-    local_zone = ZoneInfo(tz_local)
+    tz_key = args.tz or local_tz_key("America/Los_Angeles")
+    local_zone = ZoneInfo(tz_key)
     now_local = datetime.now(local_zone)
     start = (now_local - timedelta(days=2)).date().isoformat()
     end = (now_local + timedelta(days=3)).date().isoformat()
-    games = fetch_team_schedule(session, team_id, start, end, tz=tz_local)
+    games = fetch_team_schedule(session, team_id, start, end, tz=tz_key)
     live, last_final, next_up = choose_live_last_next(games, now_local.astimezone(timezone.utc))
 
     if live:
@@ -505,7 +713,21 @@ def main():
                 old_stdout = sys.stdout
                 sys.stdout = open(args.log, "a", encoding="utf-8")
             stream(gamepk, interval=args.interval, show_pitches=args.pitches,
-                   from_start=args.from_start, color=not args.no_color, scoring_only=args.scoring_only)
+                   from_start=args.from_start, color=not args.no_color, scoring_only=args.scoring_only,
+                   line_score=args.line_score, box_interval_min=args.box_interval, tz_key=tz_key,
+                   quiet=args.quiet, verbose=args.verbose)
+        except KeyboardInterrupt:
+            print("\nBye.")
+        return
+
+    # Interactive selection if multiple games today and none live
+    selected = select_gamepk_interactive(games, team_id, tz_key, target_date=str(now_local.date()))
+    if selected:
+        try:
+            stream(selected, interval=args.interval, show_pitches=args.pitches,
+                   from_start=args.from_start, color=not args.no_color, scoring_only=args.scoring_only,
+                   line_score=args.line_score, box_interval_min=args.box_interval, tz_key=tz_key,
+                   quiet=args.quiet, verbose=args.verbose)
         except KeyboardInterrupt:
             print("\nBye.")
         return
@@ -513,13 +735,13 @@ def main():
     print(colorize(not args.no_color, "—" * 72, "90"))
     if last_final:
         print("Last game:")
-        print("  " + format_game_brief(last_final, tz_local))
+        print("  " + format_game_brief(last_final, tz_key))
     else:
         print("No recent completed game found.")
 
     if next_up:
         print("Next game:")
-        print("  " + format_game_brief(next_up, tz_local))
+        print("  " + format_game_brief(next_up, tz_key))
     else:
         print("No upcoming game found in the next few days.")
 

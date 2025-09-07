@@ -1,4 +1,4 @@
-## Scorebug: Live MLB play-by-play in the shell
+## scorebug: live MLB play-by-play for your shell
 
 Follow MLB games in your terminal. Fast to start, easy to read, scriptable.
 
@@ -55,6 +55,8 @@ scorebug yankees --pitches --from-start
 - Disable color with --no-color
 - Includes ball-strike count and approximate pitch count per at-bat
 - Shows base runners when available (◉ occupied, ○ empty)
+- Pre-game shows probable pitchers and local start time
+- If a team has multiple games today, you can select which one to follow
 
 ## CLI reference
 
@@ -70,11 +72,30 @@ scorebug yankees --pitches --from-start
 - --opponent TEAM: disambiguate doubleheaders by opponent (id, abbr, or name)
 - --log FILE: append the live stream to a file
 - --dump FILE: write full game log for the selected game and exit
+- --tz ZONE: override local timezone (e.g., America/New_York)
+- --line-score: print inning-by-inning linescore under the scoreboard
+- --box-interval N: every N minutes, reprint the scoreboard even if unchanged
+- --quiet: only scoreboard and inning banners
+- --verbose: extra details (pitches and runners)
 
 ## Notes
 
 - Data comes from MLB StatsAPI schedule and the v1.1 live feed
 - Uses If-None-Match to avoid reprinting unchanged states
+ - Team IDs are cached in `~/.scorebug/teams-<season>.json` to reduce API calls
+
+## Config (optional)
+
+Create `~/.scorebug/config.toml` to set defaults:
+
+```toml
+team = "Dodgers"          # default team
+tz = "America/Los_Angeles" # IANA timezone
+interval = 2.5             # poll seconds
+no_color = false           # disable ANSI color
+line_score = true          # show inning-by-inning line score
+box_interval = 5           # minutes between forced scoreboard prints
+```
 
 ## Roadmap
 
@@ -83,5 +104,3 @@ scorebug yankees --pitches --from-start
 - Opponent filter improvements when multiple games in a day
 - Config file for defaults and cached team map
 - Better historical dump by team/date range
-
-

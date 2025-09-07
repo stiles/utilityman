@@ -35,15 +35,16 @@ Done
 - Base runner indicators when available (◉○○)
 - Inning banners on half-inning transitions
 - Logging: --log for streaming, --dump for full-game export
+- Config defaults via ~/.scorebug/config.toml (team, tz, color, interval)
+- Quiet/verbose modes
+- Base-state fallback when runners list is missing
 
 Next features
 
 - Opponent filter edge cases when multiple games in a day
 - Scoring-only refinements (concise between-plays summaries)
 - Box score snapshot every N minutes or on inning end
-- Local timezone detection and override flag (e.g., --tz America/New_York)
-- Cache team id map locally to skip /teams on each run
-- Persistent config file for defaults (team, color, interval)
+- Opponent filter improvements when multiple games in a day
 - Save game log to file (--log path)
 - Dump historical play-by-play for a specific date/gamePk to a file
 - ASCII line score per inning and RISP highlighting
