@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "utilityman"
-version = "0.3.0"
+version = "0.4.0"
 description = "Follow any MLB game in your shell - the utility player for baseball fans"
 readme = "README.md"
 requires-python = ">=3.9"
