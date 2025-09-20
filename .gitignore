@@ -20,3 +20,8 @@ venv/
 MARKETING.md
 *.log
 
+utilityman.rb
+HOMEBREW.md
+HOMEBREW_SUMMARY.md
+examples/images/example_image.png'
+scripts/homebrew-setup.sh

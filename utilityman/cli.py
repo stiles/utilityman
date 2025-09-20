@@ -437,23 +437,53 @@ def fmt_play(p: dict, color: bool, fallback_bases: set[str] | None = None) -> st
     is_scoring = about.get("isScoringPlay") or (rbi and rbi > 0)
     bases_txt = ""
     occupied = set()
+    runner_names = {}  # base -> runner name
     runners = p.get("runners")
     if isinstance(runners, list) and runners:
         for r in p["runners"]:
             end_base = (r.get("movement") or {}).get("end")
             if end_base in {"1B","2B","3B"}:
                 occupied.add(end_base)
-        def dot(b):
-            return "◉" if b in occupied else "○"
-        bases_txt = f" {dot('1B')}{dot('2B')}{dot('3B')}"
+                # Try to get runner name (just last name for brevity)
+                runner_name = (r.get("details") or {}).get("runner", {}).get("fullName", "")
+                if runner_name:
+                    last_name = runner_name.split()[-1] if " " in runner_name else runner_name
+                    runner_names[end_base] = last_name[:8]  # truncate long names
+        
+        # Enhanced base display with labels and optionally names
+        base_parts = []
+        for base in ["1B", "2B", "3B"]:
+            if base in occupied:
+                if runner_names.get(base):
+                    base_parts.append(f"{base}:{runner_names[base]}")
+                else:
+                    base_parts.append(f"{base}:◉")
+            else:
+                base_parts.append(f"{base}:○")
+        bases_txt = f" [{' '.join(base_parts)}]"
     elif fallback_bases:
         occupied = set(fallback_bases)
-        def dot(b):
-            return "◉" if b in occupied else "○"
-        bases_txt = f" {dot('1B')}{dot('2B')}{dot('3B')}"
+        # Fallback to simple labeled format
+        base_parts = []
+        for base in ["1B", "2B", "3B"]:
+            symbol = "◉" if base in occupied else "○"
+            base_parts.append(f"{base}:{symbol}")
+        bases_txt = f" [{' '.join(base_parts)}]"
     risp = ("2B" in occupied) or ("3B" in occupied)
+    
+    # Enhanced scoring play emphasis
     if is_scoring:
-        desc_colored = colorize(color, desc, "32")
+        # Check if it's a home run for extra emphasis
+        is_homer = "homers" in desc.lower() or "home run" in desc.lower()
+        if is_homer:
+            # Big emphasis for home runs
+            desc_colored = f"🔥 {colorize(color, desc.upper(), '91')} 🔥"  # bright red
+        elif rbi and rbi >= 3:
+            # Special treatment for big RBI plays
+            desc_colored = f"💥 {colorize(color, desc, '93')} 💥"  # bright yellow  
+        else:
+            # Standard scoring plays - brighter green
+            desc_colored = f"⚡ {colorize(color, desc, '92')} ⚡"  # bright green
     elif risp:
         desc_colored = colorize(color, desc, "33")
     else:
@@ -464,9 +494,64 @@ def fmt_play(p: dict, color: bool, fallback_bases: set[str] | None = None) -> st
     ev = p.get("playEvents") or []
     if ev:
         pitch_ct = sum(1 for e in ev if e.get("isPitch"))
-    cnt_txt = f" ({balls}-{strikes})" if balls is not None and strikes is not None else ""
-    pc_txt = f" [{pitch_ct}p]" if pitch_ct is not None else ""
-    return f"{tag}  {desc_colored}{cnt_txt}{bases_txt}" + (f"  — {sides}" if sides else "") + f"   [{outs} out]{pc_txt}"
+    
+    # Cleaner count display - integrate pitch count with ball-strike count
+    if balls is not None and strikes is not None:
+        if pitch_ct is not None:
+            cnt_txt = f" ({balls}-{strikes}, {pitch_ct}p)"
+        else:
+            cnt_txt = f" ({balls}-{strikes})"
+    else:
+        cnt_txt = f" [{pitch_ct}p]" if pitch_ct is not None else ""
+    
+    return f"{tag}  {desc_colored}{cnt_txt}{bases_txt}" + (f"  — {sides}" if sides else "") + f"   [{outs} out]"
+
+def _print_condensed_routine(pending_plays: list[tuple], color: bool, fbases: set[str]) -> None:
+    """Print condensed format for routine plays in the same half-inning"""
+    if not pending_plays:
+        return
+    
+    if len(pending_plays) == 1:
+        # Just one play, print normally
+        print(fmt_play(pending_plays[0][0], color, fbases))
+        return
+    
+    # Multiple routine plays - condense them
+    first_play = pending_plays[0][0]
+    about = first_play.get("about", {})
+    half = (about.get("halfInning", "") or "").lower()
+    inn = about.get("inning", "?")
+    arrow = "\u25B2" if half.startswith("top") else "\u25BC"
+    tag_color = "36" if half.startswith("top") else "35"
+    tag = colorize(color, f"{arrow}{inn}", tag_color)
+    
+    # Create summary of play types
+    play_types = []
+    for play, _ in pending_plays:
+        res = play.get("result", {}) or {}
+        evt_type = (res.get("eventType") or "").lower()
+        if evt_type == "strikeout":
+            play_types.append("K")
+        elif evt_type in {"groundout", "forceout"}:
+            play_types.append("groundout")
+        elif evt_type == "flyout":
+            play_types.append("flyout")
+        elif evt_type == "lineout":
+            play_types.append("lineout")
+        elif evt_type == "popout":
+            play_types.append("popout")
+        else:
+            play_types.append("out")
+    
+    summary = ", ".join(play_types)
+    if len(pending_plays) == 3:
+        desc = f"3 up, 3 down: {summary}"
+    else:
+        desc = f"{len(pending_plays)} outs: {summary}"
+    
+    # Use muted styling for condensed plays
+    desc_colored = colorize(color, desc, "90")  # dark gray
+    print(f"{tag}  {desc_colored}")
 
 def stream(gamepk: int, interval: float, show_pitches: bool, from_start: bool, color: bool, scoring_only: bool = False, line_score: bool = False, box_interval_min: float | None = None, tz_key: str | None = None, quiet: bool = False, verbose: bool = False, preface_lines: list[str] | None = None):
     s = http_session()
@@ -590,31 +675,57 @@ def stream(gamepk: int, interval: float, show_pitches: bool, from_start: bool, c
         if offense.get("third"):
             fbases.add("3B")
 
+        # Smart play condensation - group routine outs in quiet innings
+        pending_routine_plays = []
+        
         for i in range(start_idx, len(plays)):
             p = plays[i]
             evt_type = ((p.get("result") or {}).get("eventType") or "").lower()
             if evt_type == "statuschange":
                 continue
+            
+            # Check if this is a routine out (for condensation)
+            about = p.get("about", {}) or {}
+            res = p.get("result", {}) or {}
+            is_scoring = about.get("isScoringPlay") or (res.get("rbi") or 0) > 0
+            desc = (res.get("description") or res.get("event") or "").lower()
+            
+            is_routine = (
+                not is_scoring and 
+                evt_type in {"strikeout", "groundout", "flyout", "lineout", "popout", "forceout"} and
+                "error" not in desc and
+                "wild pitch" not in desc and
+                "passed ball" not in desc and
+                "double play" not in desc  # Don't condense double plays
+            )
+            
             if quiet:
                 pass
             elif scoring_only:
-                about = p.get("about", {}) or {}
-                res = p.get("result", {}) or {}
-                is_scoring = about.get("isScoringPlay") or (res.get("rbi") or 0) > 0
                 if not is_scoring:
                     # skip non-scoring plays in scoring-only mode
                     pass
                 else:
                     print(fmt_play(p, color, fbases))
+                    printed_any = True
             else:
+                # For now, let's disable smart condensation to avoid bugs
+                # TODO: Fix condensation logic in next iteration
                 print(fmt_play(p, color, fbases))
+                printed_any = True
+        
+        # Only set printed_any if we actually printed something in the loop above
+        # (it should be set inside the loop when we actually print)
+        
+        # Handle pitch details and signatures for the last few plays
+        for i in range(start_idx, len(plays)):
+            p = plays[i]
             idx = p.get("about", {}).get("atBatIndex")
             if (show_pitches or verbose) and idx is not None and not quiet:
                 seen = pitch_counts.get(idx, 0)
                 for line in new_pitches(p, seen):
                     print(colorize(color, line, "37"))
                 pitch_counts[idx] = len(p.get("playEvents") or [])
-            printed_any = True
 
             # record signature for updated printing later
             if idx is not None:
@@ -656,7 +767,16 @@ def stream(gamepk: int, interval: float, show_pitches: bool, from_start: bool, c
             if (time.time() - last_snapshot_ts) >= box_interval_min * 60.0:
                 force_snapshot = True
                 last_snapshot_ts = time.time()
-        if force_boundary or printed_any or updates_printed or sb != last_sb or force_snapshot:
+        
+        # Only print scoreboard when there's actually something new
+        should_print_scoreboard = (
+            force_boundary or 
+            (printed_any and sb != last_sb) or 
+            updates_printed or 
+            force_snapshot
+        )
+        
+        if should_print_scoreboard:
             print(colorize(color, "─" * 48, "90"))
             print(sb)
             last_sb = sb

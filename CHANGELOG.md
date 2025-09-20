@@ -4,6 +4,23 @@ All notable changes to this project will be documented in this file.
 
 Format based on Keep a Changelog.
 
+## [0.4.0] - 2025-09-20
+
+### Visual Improvements
+- **Enhanced scoring play emphasis** - Home runs get 🔥 fire emojis with ALL CAPS text (bright red)
+- **RBI play highlighting** - Standard RBI plays get ⚡ lightning bolts (bright green)
+- **Big RBI moments** - 3+ RBI plays get 💥 explosion emojis (bright yellow)
+- **Improved base runner display** - Shows `[1B:Lindor 2B:Soto 3B:○]` with actual player names instead of just `◉◉○`
+- **Cleaner pitch count format** - Integrated `(2-1, 5p)` instead of separate `(2-1) [5p]` display
+
+### 🐛 Bug Fixes
+- **Fixed scoreboard spam** - Eliminated repeated scoreboard printing when no new plays occur
+- **Reduced polling noise** - Scoreboard now only prints on actual game state changes
+
+### 🔧 Developer Notes
+- Smart play condensation feature temporarily disabled due to grouping logic issues
+- Ready for next phase of UX improvements (inning summaries, auto-verbosity)
+
 ## [0.3.0] - 2025-01-19
 
 ### 🏷️ Project Renamed
