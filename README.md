@@ -13,8 +13,8 @@ Pitchers: Clayton Kershaw vs. Tomoyuki Sugano
 📍 Oriole Park at Camden Yards
 🕐 Sun 10:35 AM PDT
 
-▲1  Shohei Ohtani homers (47) on a fly ball to center field. (1 RBI) (1-0) ○○○
-▲1  Mookie Betts strikes out swinging. (3-3) ○○○
+▲1  🔥 SHOHEI OHTANI HOMERS (47) ON A FLY BALL TO CENTER FIELD. (1 RBI) 🔥 (1-0, 2p) [1B:○ 2B:○ 3B:○]
+▲1  Mookie Betts strikes out swinging. (3-3, 5p) [1B:○ 2B:○ 3B:○]
 ────────────────────────────────────────────────
 🏟️  ▲ Top 1
      ⚾ LAD  1  (H: 1 E:0)
@@ -70,10 +70,11 @@ utilityman yankees --pitches --from-start
 - Reprints a play if its description updates
 - Prints the scoreboard at start of halves and on End/Middle of innings
 - Prints an inning banner on half-inning transitions for readability
-- Colors: cyan for away, magenta for home, green for scoring plays
+- Colors: cyan for away, magenta for home
+- **Enhanced scoring plays**: 🔥 Home runs with fire emojis and ALL CAPS, ⚡ RBI plays with lightning bolts, 💥 Big RBI plays (3+) with explosions
+- **Better base runners**: Shows `[1B:Lindor 2B:Soto 3B:○]` with player names instead of just `◉◉○`
+- **Integrated pitch counts**: Clean `(2-1, 5p)` format combining ball-strike count with pitch count
 - Disable color with --no-color
-- Includes ball-strike count and approximate pitch count per at-bat
-- Shows base runners when available (◉ occupied, ○ empty)
 - Pre-game shows probable pitchers and local start time
 - If a team has multiple games today, you can select which one to follow
 
